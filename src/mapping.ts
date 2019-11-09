@@ -1,4 +1,4 @@
-import { Mint, Burn, Transfer } from './types/FiatTokenV1/FiatTokenV1'
+import { Mint, Burn, Transfer } from '../generated/FiatTokenV1/FiatTokenV1'
 import {
   User,
   Minter,
@@ -6,18 +6,20 @@ import {
   MinterCounter,
   TransferCounter,
   TotalSupply
-} from './types/schema'
+} from '../generated/schema'
 import { BigInt } from '@graphprotocol/graph-ts'
 
 export function handleMint(event: Mint): void {
-  let day = (event.block.timestamp / BigInt.fromI32(60 * 60 * 24))
-  let minter = Minter.load(event.params.minter.toHex())
+  let day = (event.block.timestamp.div(BigInt.fromI32(60 * 60 * 24)))
+  let minter = Minter.load(event.params.to.toHex())
   if (minter == null) {
     // Minter
-    minter = new Minter(event.params.minter.toHex())
-    minter.address = event.params.minter.toHex()
+    minter = new Minter(event.params.to.toHex())
+    minter.address = event.params.to.toHex()
     minter.totalMinted = BigInt.fromI32(0)
     minter.totalBurned = BigInt.fromI32(0)
+
+    event.params
 
     // MinterCounter
     let minterCounter = MinterCounter.load('singleton')
@@ -29,7 +31,7 @@ export function handleMint(event: Mint): void {
     }
     minterCounter.save()
   }
-  minter.totalMinted = minter.totalMinted + event.params.amount
+  minter.totalMinted = minter.totalMinted.plus(event.params.value)
   minter.save()
 
   let totalSupply = TotalSupply.load('singleton')
@@ -39,15 +41,15 @@ export function handleMint(event: Mint): void {
     totalSupply.minted = BigInt.fromI32(0)
     totalSupply.burned = BigInt.fromI32(0)
   }
-  totalSupply.supply = totalSupply.supply + event.params.amount
-  totalSupply.minted = totalSupply.minted + event.params.amount
+  totalSupply.supply = totalSupply.supply.plus(event.params.value)
+  totalSupply.minted = totalSupply.minted.plus(event.params.value)
   totalSupply.save()
   totalSupply.id = day.toString()
   totalSupply.save()
 }
 
 export function handleBurn(event: Burn): void {
-  let day = (event.block.timestamp / BigInt.fromI32(60 * 60 * 24))
+  let day = (event.block.timestamp.div(BigInt.fromI32(60 * 60 * 24)))
   let minter = Minter.load(event.params.burner.toHex())
   if (minter == null) {
     minter = new Minter(event.params.burner.toHex())
@@ -67,7 +69,7 @@ export function handleBurn(event: Burn): void {
     minterCounter.id = day.toString()
     minterCounter.save()
   }
-  minter.totalBurned = minter.totalBurned + event.params.amount
+  minter.totalBurned = minter.totalBurned.plus(event.params.value)
   minter.save()
 
   let totalSupply = TotalSupply.load('singleton')
@@ -77,21 +79,21 @@ export function handleBurn(event: Burn): void {
     totalSupply.minted = BigInt.fromI32(0)
     totalSupply.burned = BigInt.fromI32(0)
   }
-  totalSupply.supply = totalSupply.supply - event.params.amount
-  totalSupply.burned = totalSupply.burned + event.params.amount
+  totalSupply.supply = totalSupply.supply.minus(event.params.value)
+  totalSupply.burned = totalSupply.burned.plus(event.params.value)
   totalSupply.save()
   totalSupply.id = day.toString()
   totalSupply.save()
 }
 
 export function handleTransfer(event: Transfer): void {
-  let day = (event.block.timestamp / BigInt.fromI32(60 * 60 * 24))
+  let day = (event.block.timestamp.div(BigInt.fromI32(60 * 60 * 24)))
 
   let userFrom = User.load(event.params.from.toHex())
   if (userFrom == null) {
     userFrom = newUser(event.params.from.toHex(), event.params.from.toHex());
   }
-  userFrom.balance = userFrom.balance - event.params.value
+  userFrom.balance = userFrom.balance.minus(event.params.value)
   userFrom.transactionCount = userFrom.transactionCount + 1
   userFrom.save()
 
@@ -111,7 +113,7 @@ export function handleTransfer(event: Transfer): void {
     userCounter.id = day.toString()
     userCounter.save()
   }
-  userTo.balance = userTo.balance + event.params.value
+  userTo.balance = userTo.balance.plus(event.params.value)
   userTo.transactionCount = userTo.transactionCount + 1
   userTo.save()
 
@@ -123,7 +125,7 @@ export function handleTransfer(event: Transfer): void {
     transferCounter.totalTransferred = BigInt.fromI32(0)
   }
   transferCounter.count = transferCounter.count + 1
-  transferCounter.totalTransferred = transferCounter.totalTransferred + event.params.value
+  transferCounter.totalTransferred = transferCounter.totalTransferred.plus(event.params.value)
   transferCounter.save()
   transferCounter.id = day.toString()
   transferCounter.save()
