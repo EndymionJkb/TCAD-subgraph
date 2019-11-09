@@ -1,92 +1,138 @@
-import { BigInt } from "@graphprotocol/graph-ts"
+import { Mint, Burn, Transfer } from './types/FiatTokenV1/FiatTokenV1'
 import {
-  Contract,
-  WipeBlacklistedAccount,
-  SetRegistry,
-  SetBurnBounds,
-  Burn,
-  Mint,
-  Approval,
-  Transfer,
-  OwnershipTransferred
-} from "../generated/Contract/Contract"
-import { ExampleEntity } from "../generated/schema"
+  User,
+  Minter,
+  UserCounter,
+  MinterCounter,
+  TransferCounter,
+  TotalSupply
+} from './types/schema'
+import { BigInt } from '@graphprotocol/graph-ts'
 
-export function handleWipeBlacklistedAccount(
-  event: WipeBlacklistedAccount
-): void {
-  // Entities can be loaded from the store using a string ID; this ID
-  // needs to be unique across all entities of the same type
-  let entity = ExampleEntity.load(event.transaction.from.toHex())
+export function handleMint(event: Mint): void {
+  let day = (event.block.timestamp / BigInt.fromI32(60 * 60 * 24))
+  let minter = Minter.load(event.params.minter.toHex())
+  if (minter == null) {
+    // Minter
+    minter = new Minter(event.params.minter.toHex())
+    minter.address = event.params.minter.toHex()
+    minter.totalMinted = BigInt.fromI32(0)
+    minter.totalBurned = BigInt.fromI32(0)
 
-  // Entities only exist after they have been saved to the store;
-  // `null` checks allow to create entities on demand
-  if (entity == null) {
-    entity = new ExampleEntity(event.transaction.from.toHex())
-
-    // Entity fields can be set using simple assignments
-    entity.count = BigInt.fromI32(0)
+    // MinterCounter
+    let minterCounter = MinterCounter.load('singleton')
+    if (minterCounter == null) {
+      minterCounter = new MinterCounter('singleton')
+      minterCounter.count = 1
+    } else {
+      minterCounter.count = minterCounter.count + 1
+    }
+    minterCounter.save()
   }
+  minter.totalMinted = minter.totalMinted + event.params.amount
+  minter.save()
 
-  // BigInt and BigDecimal math are supported
-  entity.count = entity.count + BigInt.fromI32(1)
-
-  // Entity fields can be set based on event parameters
-  entity.account = event.params.account
-  entity.balance = event.params.balance
-
-  // Entities can be written to the store with `.save()`
-  entity.save()
-
-  // Note: If a handler doesn't require existing field values, it is faster
-  // _not_ to load the entity from the store. Instead, create it fresh with
-  // `new Entity(...)`, set the fields that should be updated and save the
-  // entity back to the store. Fields that were not set or unset remain
-  // unchanged, allowing for partial updates to be applied.
-
-  // It is also possible to access smart contracts from mappings. For
-  // example, the contract that has emitted the event can be connected to
-  // with:
-  //
-  // let contract = Contract.bind(event.address)
-  //
-  // The following functions can then be called on this contract to access
-  // state variables and other data:
-  //
-  // - contract.burnMin(...)
-  // - contract.name(...)
-  // - contract.approve(...)
-  // - contract.totalSupply(...)
-  // - contract.transferFrom(...)
-  // - contract.rounding(...)
-  // - contract.decimals(...)
-  // - contract.minimumGasPriceForFutureRefunds(...)
-  // - contract.minimumGasPriceForRefund(...)
-  // - contract.burnMax(...)
-  // - contract.paused(...)
-  // - contract.decreaseApproval(...)
-  // - contract.balanceOf(...)
-  // - contract.registry(...)
-  // - contract.remainingGasRefundPool(...)
-  // - contract.owner(...)
-  // - contract.symbol(...)
-  // - contract.transfer(...)
-  // - contract.increaseApproval(...)
-  // - contract.allowance(...)
-  // - contract.pendingOwner(...)
-  // - contract.gasRefundPool(...)
+  let totalSupply = TotalSupply.load('singleton')
+  if (totalSupply == null) {
+    totalSupply = new TotalSupply('singleton')
+    totalSupply.supply = BigInt.fromI32(0)
+    totalSupply.minted = BigInt.fromI32(0)
+    totalSupply.burned = BigInt.fromI32(0)
+  }
+  totalSupply.supply = totalSupply.supply + event.params.amount
+  totalSupply.minted = totalSupply.minted + event.params.amount
+  totalSupply.save()
+  totalSupply.id = day.toString()
+  totalSupply.save()
 }
 
-export function handleSetRegistry(event: SetRegistry): void {}
+export function handleBurn(event: Burn): void {
+  let day = (event.block.timestamp / BigInt.fromI32(60 * 60 * 24))
+  let minter = Minter.load(event.params.burner.toHex())
+  if (minter == null) {
+    minter = new Minter(event.params.burner.toHex())
+    minter.address = event.params.burner.toHex()
+    minter.totalMinted = BigInt.fromI32(0)
+    minter.totalBurned = BigInt.fromI32(0)
 
-export function handleSetBurnBounds(event: SetBurnBounds): void {}
+    // MinterCounter
+    let minterCounter = MinterCounter.load('singleton')
+    if (minterCounter == null) {
+      minterCounter = new MinterCounter('singleton')
+      minterCounter.count = 1
+    } else {
+      minterCounter.count = minterCounter.count + 1
+    }
+    minterCounter.save()
+    minterCounter.id = day.toString()
+    minterCounter.save()
+  }
+  minter.totalBurned = minter.totalBurned + event.params.amount
+  minter.save()
 
-export function handleBurn(event: Burn): void {}
+  let totalSupply = TotalSupply.load('singleton')
+  if (totalSupply == null) {
+    totalSupply = new TotalSupply('singleton')
+    totalSupply.supply = BigInt.fromI32(0)
+    totalSupply.minted = BigInt.fromI32(0)
+    totalSupply.burned = BigInt.fromI32(0)
+  }
+  totalSupply.supply = totalSupply.supply - event.params.amount
+  totalSupply.burned = totalSupply.burned + event.params.amount
+  totalSupply.save()
+  totalSupply.id = day.toString()
+  totalSupply.save()
+}
 
-export function handleMint(event: Mint): void {}
+export function handleTransfer(event: Transfer): void {
+  let day = (event.block.timestamp / BigInt.fromI32(60 * 60 * 24))
 
-export function handleApproval(event: Approval): void {}
+  let userFrom = User.load(event.params.from.toHex())
+  if (userFrom == null) {
+    userFrom = newUser(event.params.from.toHex(), event.params.from.toHex());
+  }
+  userFrom.balance = userFrom.balance - event.params.value
+  userFrom.transactionCount = userFrom.transactionCount + 1
+  userFrom.save()
 
-export function handleTransfer(event: Transfer): void {}
+  let userTo = User.load(event.params.to.toHex())
+  if (userTo == null) {
+    userTo = newUser(event.params.to.toHex(), event.params.to.toHex());
 
-export function handleOwnershipTransferred(event: OwnershipTransferred): void {}
+    // UserCounter
+    let userCounter = UserCounter.load('singleton')
+    if (userCounter == null) {
+      userCounter = new UserCounter('singleton')
+      userCounter.count = 1
+    } else {
+      userCounter.count = userCounter.count + 1
+    }
+    userCounter.save()
+    userCounter.id = day.toString()
+    userCounter.save()
+  }
+  userTo.balance = userTo.balance + event.params.value
+  userTo.transactionCount = userTo.transactionCount + 1
+  userTo.save()
+
+  // Transfer counter total and historical
+  let transferCounter = TransferCounter.load('singleton')
+  if (transferCounter == null) {
+    transferCounter = new TransferCounter('singleton')
+    transferCounter.count = 0
+    transferCounter.totalTransferred = BigInt.fromI32(0)
+  }
+  transferCounter.count = transferCounter.count + 1
+  transferCounter.totalTransferred = transferCounter.totalTransferred + event.params.value
+  transferCounter.save()
+  transferCounter.id = day.toString()
+  transferCounter.save()
+}
+
+function newUser(id: string, address: string): User {
+  let user = new User(id);
+  user.address = address
+  user.balance = BigInt.fromI32(0)
+  user.transactionCount = 0
+  return user
+}
